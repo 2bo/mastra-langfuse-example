@@ -32,6 +32,51 @@ function getWeatherCondition(code: number): string {
   return conditions[code] || 'Unknown';
 }
 
+const normalizeCity = createStep({
+  id: 'normalize-city',
+  description: 'Normalize city name to English ASCII using translator agent',
+  inputSchema: z.object({
+    city: z.string(),
+  }),
+  outputSchema: z.object({
+    city: z.string(),
+  }),
+  execute: async ({ inputData, mastra }) => {
+    if (!inputData) {
+      throw new Error('Input data not found');
+    }
+
+    let normalized = inputData.city;
+
+    try {
+      const agent = mastra?.getAgent('cityTranslatorAgent');
+      if (!agent) {
+        return { city: normalized };
+      }
+
+      const response = await agent.stream([
+        {
+          role: 'user',
+          content: `地名を英語ASCII表記に変換して返してください。出力は地名のみ。\n地名: ${inputData.city}`,
+        },
+      ]);
+
+      let text = '';
+      for await (const chunk of response.textStream) {
+        text += chunk;
+      }
+
+      normalized = text.trim().split(/\r?\n/)[0]?.trim() || inputData.city;
+      // ダイアクリティカルマーク除去
+      normalized = normalized.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+    } catch {
+      normalized = inputData.city;
+    }
+
+    return { city: normalized };
+  },
+});
+
 const fetchWeather = createStep({
   id: 'fetch-weather',
   description: 'Fetches weather forecast for a given city',
@@ -44,7 +89,7 @@ const fetchWeather = createStep({
       throw new Error('Input data not found');
     }
 
-    const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(inputData.city)}&count=1`;
+    const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(inputData.city)}&count=1&language=en`;
     const geocodingResponse = await fetch(geocodingUrl);
     const geocodingData = (await geocodingResponse.json()) as {
       results: { latitude: number; longitude: number; name: string }[];
@@ -105,47 +150,45 @@ const planActivities = createStep({
       throw new Error('Weather agent not found');
     }
 
-    const prompt = `Based on the following weather forecast for ${forecast.location}, suggest appropriate activities:
+    const prompt = `以下の天気予報をもとに「${forecast.location}」でのアクティビティを提案してください:
       ${JSON.stringify(forecast, null, 2)}
-      For each day in the forecast, structure your response exactly as follows:
 
-      📅 [Day, Month Date, Year]
+      以下の日本語フォーマットを厳守してください（絵文字・見出しも含めそのまま）:
+
+      📅 [曜日付きの日付]
       ═══════════════════════════
 
-      🌡️ WEATHER SUMMARY
-      • Conditions: [brief description]
-      • Temperature: [X°C/Y°F to A°C/B°F]
-      • Precipitation: [X% chance]
+      🌡️ 天気サマリー
+      • 状況: [短い説明]
+      • 気温: [最低/最高 ℃]
+      • 降水確率: [X%]
 
-      🌅 MORNING ACTIVITIES
-      Outdoor:
-      • [Activity Name] - [Brief description including specific location/route]
-        Best timing: [specific time range]
-        Note: [relevant weather consideration]
+      🌅 午前のおすすめ
+      屋外:
+      • [アクティビティ名] - [具体的な場所やルートを含む短い説明]
+        ベスト時間帯: [時間帯]
+        メモ: [天気上の注意点]
 
-      🌞 AFTERNOON ACTIVITIES
-      Outdoor:
-      • [Activity Name] - [Brief description including specific location/route]
-        Best timing: [specific time range]
-        Note: [relevant weather consideration]
+      🌞 午後のおすすめ
+      屋外:
+      • [アクティビティ名] - [具体的な場所やルートを含む短い説明]
+        ベスト時間帯: [時間帯]
+        メモ: [天気上の注意点]
 
-      🏠 INDOOR ALTERNATIVES
-      • [Activity Name] - [Brief description including specific venue]
-        Ideal for: [weather condition that would trigger this alternative]
+      🏠 屋内オプション
+      • [アクティビティ名] - [具体的な施設名]
+        こんなときに: [雨/暑さ/強風 などトリガー]
 
-      ⚠️ SPECIAL CONSIDERATIONS
-      • [Any relevant weather warnings, UV index, wind conditions, etc.]
+      ⚠️ 注意事項
+      • [警報や紫外線、風などの注意]
 
-      Guidelines:
-      - Suggest 2-3 time-specific outdoor activities per day
-      - Include 1-2 indoor backup options
-      - For precipitation >50%, lead with indoor activities
-      - All activities must be specific to the location
-      - Include specific venues, trails, or locations
-      - Consider activity intensity based on temperature
-      - Keep descriptions concise but informative
-
-      Maintain this exact formatting for consistency, using the emoji and section headers as shown.`;
+      ガイドライン:
+      - 時間指定の屋外案内を各日2〜3件
+      - 屋内の保険プランを1〜2件
+      - 降水確率50%以上なら屋内を優先提示
+      - 場所固有のスポット名を入れる
+      - 気温に応じて運動強度を調整
+      - 簡潔で読みやすく`;
 
     const response = await agent.stream([
       {
@@ -176,6 +219,7 @@ const weatherWorkflow = createWorkflow({
     activities: z.string(),
   }),
 })
+  .then(normalizeCity)
   .then(fetchWeather)
   .then(planActivities);
 

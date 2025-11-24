@@ -4,6 +4,7 @@ import { LangfuseExporter } from '@mastra/langfuse';
 import { LibSQLStore } from '@mastra/libsql';
 import { PinoLogger } from '@mastra/loggers';
 import { weatherAgent } from './agents/weather-agent';
+import { cityTranslatorAgent } from './agents/city-translator-agent';
 import {
   completenessScorer,
   toolCallAppropriatenessScorer,
@@ -13,7 +14,7 @@ import { weatherWorkflow } from './workflows/weather-workflow';
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
-  agents: { weatherAgent },
+  agents: { weatherAgent, cityTranslatorAgent },
   scorers: { toolCallAppropriatenessScorer, completenessScorer, translationScorer },
   storage: new LibSQLStore({
     // stores observability, scores, ... into memory storage, if it needs to persist, change to file:../mastra.db

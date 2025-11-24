@@ -11,7 +11,9 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "experiment:create-dataset": "dotenv -e .env -- tsx src/mastra/experiments/scripts/create-dataset.ts",
+    "experiment:run": "dotenv -e .env -- tsx src/mastra/experiments/scripts/run-experiment.ts"
   },
   "keywords": [],
   "author": "",
@@ -22,17 +24,21 @@
     "node": ">=22.13.0"
   },
   "dependencies": {
+    "@langfuse/client": "^4.4.2",
+    "@langfuse/otel": "^4.4.2",
     "@mastra/core": "^0.24.5",
     "@mastra/evals": "^0.14.4",
     "@mastra/langfuse": "^0.2.3",
     "@mastra/libsql": "^0.16.2",
     "@mastra/loggers": "^0.10.19",
     "@mastra/memory": "^0.15.11",
+    "@opentelemetry/sdk-node": "^0.208.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
+    "dotenv-cli": "^7.4.4",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
