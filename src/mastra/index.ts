@@ -1,13 +1,15 @@
+import { DefaultExporter } from '@mastra/core/ai-tracing';
 import { Mastra } from '@mastra/core/mastra';
-import { PinoLogger } from '@mastra/loggers';
+import { LangfuseExporter } from '@mastra/langfuse';
 import { LibSQLStore } from '@mastra/libsql';
-import { weatherWorkflow } from './workflows/weather-workflow';
+import { PinoLogger } from '@mastra/loggers';
 import { weatherAgent } from './agents/weather-agent';
 import {
-  toolCallAppropriatenessScorer,
   completenessScorer,
+  toolCallAppropriatenessScorer,
   translationScorer,
 } from './scorers/weather-scorer';
+import { weatherWorkflow } from './workflows/weather-workflow';
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
@@ -19,14 +21,27 @@ export const mastra = new Mastra({
   }),
   logger: new PinoLogger({
     name: 'Mastra',
-    level: 'info',
+    level: 'debug',
   }),
   telemetry: {
     // Telemetry is deprecated and will be removed in the Nov 4th release
     enabled: false,
   },
   observability: {
-    // Enables DefaultExporter and CloudExporter for AI tracing
-    default: { enabled: true },
+    configs: {
+      default: {
+        serviceName: 'mastra-langfuse-example',
+        exporters: [
+          new DefaultExporter(), // For Studio/Playground
+          new LangfuseExporter({
+            publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+            secretKey: process.env.LANGFUSE_SECRET_KEY,
+            baseUrl: process.env.LANGFUSE_BASE_URL,
+            realtime: process.env.NODE_ENV === 'development',
+            logLevel: 'info',
+          }),
+        ],
+      },
+    },
   },
 });
